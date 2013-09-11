@@ -1,0 +1,19 @@
+{	application,
+	statse,
+	[
+		{ description, "Erlang statsd client" },
+		{ vsn, "1" },
+		{ registered, [] },
+		{ applications,
+		[
+			kernel,
+			stdlib
+		] },
+		{ mod, { statse_app, [] } },
+		{ env,
+		[
+			{ statsd_host,	"localhost" },
+			{ statsd_port,	8125 }
+		] }
+	]
+}.
