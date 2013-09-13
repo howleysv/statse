@@ -19,9 +19,9 @@
 -type call_type() 	:: stop.
 -type cast_type()	:: { counter, statse:stat_key(), integer() }
 			|  { counter, statse:stat_key(), integer(), float() }
-			|  { timer, statse:stat_key(), number() }
-			|  { gauge, statse:stat_key(), number() }
-			|  { gauge_change, statse:stat_key(), number() }.
+			|  { timer, statse:stat_key(), integer() }
+			|  { gauge, statse:stat_key(), integer() }
+			|  { gauge_change, statse:stat_key(), integer() }.
 -type info_type()	:: _.
 -type call_ret() 	:: { noreply, #state{} }
 			|  { reply, term(), #state{} }
@@ -38,7 +38,7 @@ start_link() ->
 
 -spec start_link( inet:hostname(), inet:port_number(), statse:stat_key() ) -> { ok, pid() }.
 start_link( Host, Port, StatPrefix ) ->
-	gen_server:start_link( ?MODULE, { Host, Port, StatPrefix }, [] ).
+	gen_server:start_link( { local, ?MODULE }, ?MODULE, { Host, Port, StatPrefix }, [] ).
 
 -spec send_stat( atom() | pid(), tuple() ) -> ok.
 send_stat( StatClient, Stat ) ->
