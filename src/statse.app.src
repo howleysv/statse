@@ -13,7 +13,8 @@
 		{ env,
 		[
 			{ statsd_host,	"localhost" },
-			{ statsd_port,	8125 }
+			{ statsd_port,	8125 },
+			{ stat_prefix,	[] }
 		] }
 	]
 }.
