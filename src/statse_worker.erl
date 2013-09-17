@@ -86,7 +86,7 @@ handle_cast( { gauge_change, Stat, Delta }, #state{} = State ) when Delta >= 0 -
 	{ noreply, State };
 
 handle_cast( { gauge_change, Stat, Delta }, #state{} = State ) ->
-	Format = io_lib:format( "-~p|g", [ Delta ] ),
+	Format = io_lib:format( "~p|g", [ Delta ] ),
 	send_stat( Stat, Format, State ),
 	{ noreply, State };
 
