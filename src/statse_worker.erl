@@ -10,7 +10,7 @@
 
 %% Internal State
 -record( state, {
-			socket 		:: gen_udp:socket(),	%% The socket from which data is sent
+			socket 		:: inet:socket(),	%% The socket from which data is sent
 			ip 		:: inet:ip_address(),	%% IP of the statsd server
 			port 		:: inet:port_number(),	%% Port number of the statsd server
 			stat_prefix	:: statse:stat_key()	%% Prefix namespace for all stats
@@ -109,7 +109,7 @@ terminate( _Reason, #state{ socket = Socket } ) ->
 code_change( _OldVersion, State, _Extra ) ->
 	{ ok, State }.
 
--spec build_prefix( statse:stat_key() ) -> statse:stats_key().
+-spec build_prefix( statse:stat_key() ) -> statse:stat_key().
 build_prefix( [] ) -> [];
 
 build_prefix( Prefix ) ->
