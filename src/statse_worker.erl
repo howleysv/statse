@@ -75,10 +75,14 @@ handle_cast( { timer, Stat, Millis }, #state{} = State ) ->
 	send_stat( Stat, Format, State ),
 	{ noreply, State };
 
-handle_cast( { gauge, Stat, Value }, #state{} = State ) ->
+handle_cast( { gauge, Stat, Value }, #state{} = State ) when Value >= 0 ->
 	Format = io_lib:format( "~p|g", [ Value ] ),
 	send_stat( Stat, Format, State ),
 	{ noreply, State };
+
+handle_cast( { gauge, Stat, Value }, #state{} = State ) ->
+	{ noreply, NewState } = handle_cast( { gauge, Stat, 0 }, State ),
+	handle_cast( { gauge_change, Stat, Value }, NewState );
 
 handle_cast( { gauge_change, Stat, Delta }, #state{} = State ) when Delta >= 0 ->
 	Format = io_lib:format( "+~p|g", [ Delta ] ),
