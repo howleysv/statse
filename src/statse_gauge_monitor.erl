@@ -25,12 +25,11 @@
 			monitored = []	:: [ #monitored{} ]	%% List of monitored stats
 		} ).
 
--type call_type() 	:: { start, statse:stat_key(), stat_fun(), pos_integer() }.
--type cast_type()	:: { stop, statse:stat_key() }.
+-type call_type() 	:: _.
+-type cast_type()	:: { start, statse:stat_key(), stat_fun(), pos_integer() }
+			|  { stop, statse:stat_key() }.
 -type info_type()	:: { timeout, reference(), statse:stat_key() }.
--type call_ret() 	:: { noreply, #state{} }
-			|  { reply, term(), #state{} }
-			|  { stop, term(), term(), #state{} }.
+-type call_ret() 	:: { noreply, #state{} }.
 -type cast_ret()	:: { noreply, #state{} }
 			|  { stop, term(), #state{} }.
 
@@ -40,7 +39,7 @@ start_link() ->
 
 -spec start_monitor( statse:stat_key(), stat_fun(), pos_integer() ) -> ok | { error, term() }.
 start_monitor( StatKey, StatFun, RefreshPeriod ) ->
-	gen_server:call( ?MODULE, { start, StatKey, StatFun, RefreshPeriod } ).
+	gen_server:cast( ?MODULE, { start, StatKey, StatFun, RefreshPeriod } ).
 
 -spec stop_monitor( statse:stat_key() ) -> ok.
 stop_monitor( StatKey ) ->
@@ -51,24 +50,25 @@ init( _ ) ->
 	{ ok, #state{} }.
 
 -spec handle_call( call_type(), { pid(), _ }, #state{} ) -> call_ret().
-handle_call( { start, StatKey, StatFun, RefreshPeriod }, _From, #state{ monitored = Monitored } = State ) ->
-	StatMonitor = #monitored{	key 		= StatKey,
-					stat_fun 	= StatFun,
-					refresh 	= RefreshPeriod },
-	case log_stat( StatMonitor ) of
-		ok ->
-			NewMonitored = [ start_timer( StatMonitor ) | remove_monitor( StatKey, Monitored ) ],
-			{ reply, ok, State#state{ monitored = NewMonitored } };
-		{ error, Reason } ->
-			{ reply, { error, Reason }, State }
-	end;
-
 %% Unrecognised request
 handle_call( _Request, _From, State ) ->
 	error_logger:warning_msg( "Unrecognized call: ~p", [ _Request ] ),
 	{ noreply, State }.
 
 -spec handle_cast( cast_type(), #state{} ) -> cast_ret().
+handle_cast( { start, StatKey, StatFun, RefreshPeriod }, #state{ monitored = Monitored } = State ) ->
+	StatMonitor = #monitored{	key 		= StatKey,
+					stat_fun 	= StatFun,
+					refresh 	= RefreshPeriod },
+	case log_stat( StatMonitor ) of
+		ok ->
+			NewMonitored = [ start_timer( StatMonitor ) | remove_monitor( StatKey, Monitored ) ],
+			{ noreply, State#state{ monitored = NewMonitored } };
+		{ error, Reason } ->
+			error_logger:warning_msg( "Failed to add stat ~p ~p.", [ StatKey, Reason ] ),
+			{ noreply, State }
+	end;
+
 handle_cast( { stop, StatKey }, #state{ monitored = Monitored } = State ) ->
 	{ noreply, State#state{ monitored = remove_monitor( StatKey, Monitored ) } };
 
