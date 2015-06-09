@@ -2,7 +2,7 @@
 -author( "Shane Howley <howleysv@gmail.com>" ).
 
 %% Public interface
--export( [ increment/1, increment/2, decrement/1, decrement/2, count/2, count/3, timing/2, gauge/2, gauge_change/2 ] ).
+-export( [ increment/1, increment/2, decrement/1, decrement/2, count/2, count/3, timing/2, timing/3, gauge/2, gauge_change/2 ] ).
 
 -export_type( [ stat_key/0 ] ).
 
@@ -36,12 +36,19 @@ count( Stat, Count, SampleRate ) ->
 	dispatch( { counter, Stat, Count, SampleRate } ).
 
 -spec timing( stat_key(), integer() | erlang:timestamp() ) -> ok.
-timing( Stat, Timestamp = { _, _, _ } ) ->
-	Millis = timer:now_diff( erlang:now(), Timestamp ) div 1000,
-	timing( Stat, Millis );
+timing( Stat, Time ) ->
+	timing( Stat, Time, 1.0 ).
 
-timing( Stat, Millis ) ->
-	dispatch( { timer, Stat, Millis } ).
+-spec timing( stat_key(), integer() | erlang:timestamp(), float() ) -> ok.
+timing( Stat, Timestamp = { _, _, _ }, SampleRate ) ->
+	Millis = timer:now_diff( erlang:now(), Timestamp ) div 1000,
+	timing( Stat, Millis, SampleRate );
+
+timing( Stat, Millis, SampleRate ) when SampleRate >= 1.0 ->
+	dispatch( { timer, Stat, Millis } );
+
+timing( Stat, Millis, SampleRate ) ->
+	dispatch( { timer, Stat, Millis, SampleRate } ).
 
 -spec gauge( stat_key(), integer() ) -> ok.
 gauge( Stat, Value ) ->

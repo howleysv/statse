@@ -20,6 +20,7 @@
 -type cast_type()	:: { counter, statse:stat_key(), integer() }
 			|  { counter, statse:stat_key(), integer(), float() }
 			|  { timer, statse:stat_key(), integer() }
+			|  { timer, statse:stat_key(), integer(), float() }
 			|  { gauge, statse:stat_key(), integer() }
 			|  { gauge_change, statse:stat_key(), integer() }.
 -type info_type()	:: _.
@@ -70,6 +71,11 @@ handle_cast( { counter, Stat, Count, SampleRate }, #state{} = State ) ->
 
 handle_cast( { timer, Stat, Millis }, #state{} = State ) ->
 	Format = io_lib:format( "~p|ms", [ Millis ] ),
+	send_stat( Stat, Format, State ),
+	{ noreply, State };
+
+handle_cast( { timer, Stat, Millis, SampleRate }, #state{} = State ) ->
+	Format = io_lib:format( "~p|ms|@~p", [ Millis, SampleRate ] ),
 	send_stat( Stat, Format, State ),
 	{ noreply, State };
 
