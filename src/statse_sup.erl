@@ -8,15 +8,14 @@
 %% supervisor behaviour
 -export( [ init/1 ] ).
 
+-define( CHILD( M, F, A ), { M, { M, F, A }, permanent, 10000, worker, [ M ] } ).
+
 start_link() ->
 	supervisor:start_link( ?MODULE, [] ).
 
 init( _ ) ->
-	{ ok, {	{ one_for_one, 3, 60 },
-		[ {	statse_worker,
-			{ statse_worker, start_link, [] },
-			permanent,
-			5000,
-			worker,
-			[ statse_worker ] }
-		] } }.
+	MaxRestart 	= 3,
+	MaxTime 	= 60,
+	ChildSpecs 	= [	?CHILD( statse_worker, start_link, [] ),
+				?CHILD( statse_gauge_monitor, start_link, [] ) ],
+	{ ok, { { one_for_one, MaxRestart, MaxTime }, ChildSpecs } }.

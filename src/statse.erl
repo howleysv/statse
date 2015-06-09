@@ -37,7 +37,7 @@ count( Stat, Count, SampleRate ) ->
 
 -spec timing( stat_key(), integer() | erlang:timestamp() ) -> ok.
 timing( Stat, Timestamp = { _, _, _ } ) ->
-	Millis = timer:now_diff( erlang:now(), Timestamp ) / 1000,
+	Millis = timer:now_diff( erlang:now(), Timestamp ) div 1000,
 	timing( Stat, Millis );
 
 timing( Stat, Millis ) ->

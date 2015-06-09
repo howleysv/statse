@@ -24,10 +24,8 @@
 			|  { gauge_change, statse:stat_key(), integer() }.
 -type info_type()	:: _.
 -type call_ret() 	:: { noreply, #state{} }
-			|  { reply, term(), #state{} }
 			|  { stop, term(), term(), #state{} }.
--type cast_ret()	:: { noreply, #state{} }
-			|  { stop, term(), #state{} }.
+-type cast_ret()	:: { noreply, #state{} }.
 
 -spec start_link() -> { ok, pid() }.
 start_link() ->
