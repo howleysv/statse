@@ -102,3 +102,9 @@ statse:gauge( StatKey, Value )
 ```erlang
 statse:gauge_change( StatKey, Delta )
 ```
+
+## Tests:
+
+```
+rebar eunit
+```

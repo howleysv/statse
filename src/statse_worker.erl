@@ -3,7 +3,7 @@
 -behaviour( gen_server ).
 
 %% Public interface
--export( [ start_link/0, start_link/3, send_stat/2 ] ).
+-export( [ start_link/0, start_link/3, stop/1, send_stat/2 ] ).
 
 %% gen_server behavour
 -export( [ init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3 ] ).
@@ -38,6 +38,10 @@ start_link() ->
 -spec start_link( inet:hostname(), inet:port_number(), statse:stat_key() ) -> { ok, pid() }.
 start_link( Host, Port, StatPrefix ) ->
 	gen_server:start_link( { local, ?MODULE }, ?MODULE, { Host, Port, StatPrefix }, [] ).
+
+-spec stop( atom() | pid() ) -> ok | { error, term() }.
+stop( StatClient ) ->
+	gen_server:call( StatClient, stop ).
 
 -spec send_stat( atom() | pid(), tuple() ) -> ok.
 send_stat( StatClient, Stat ) ->
