@@ -1,9 +1,13 @@
 {	application,
 	statse,
 	[
-		{ description, "Erlang statsd client" },
-		{ vsn, "1" },
-		{ registered, [] },
+		{ description, "Erlang StatsD client" },
+		{ vsn, "0.1.0" },
+		{ registered,
+		[
+			statse_worker,
+			statse_gauge_monitor
+		] },
 		{ applications,
 		[
 			kernel,
