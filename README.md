@@ -1,4 +1,4 @@
-# statse
+# statse ![TravisCI](https://travis-ci.org/howleysv/statse.svg?branch=master)
 Erlang [StatsD](https://github.com/etsy/statsd) client
 
 ## Usage:

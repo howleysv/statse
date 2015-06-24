@@ -42,7 +42,7 @@ timing( Stat, Time ) ->
 
 -spec timing( stat_key(), number() | erlang:timestamp(), float() ) -> ok.
 timing( Stat, Timestamp = { _, _, _ }, SampleRate ) ->
-	Millis = timer:now_diff( erlang:now(), Timestamp ) div 1000,
+	Millis = timer:now_diff( os:timestamp(), Timestamp ) div 1000,
 	timing( Stat, Millis, SampleRate );
 
 timing( Stat, Millis, SampleRate ) when SampleRate >= 1.0 ->
@@ -143,7 +143,8 @@ timing_now_test() ->
 	StartTime = { Mega - 1, Sec, Micro },
 	timing( Stat, StartTime ),
 	Packet = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1000000000|ms", Packet ),
+	{ ok, Regex } = re:compile( re:replace( ?TEST_PREFIX ++ "." ++ Stat, "\\.", "\\\\\\.", [ global, { return, list } ] ) ++ ":[0-9]+\\|ms" ),
+	?assertMatch( { match, _ }, re:run( Packet, Regex ) ),
 	teardown( Port ).
 
 timing_sample_test() ->
