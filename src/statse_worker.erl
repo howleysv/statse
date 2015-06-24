@@ -16,13 +16,15 @@
 			stat_prefix	:: statse:stat_key()	%% Prefix namespace for all stats
 		} ).
 
+-type stat_type()	:: counter
+			|  timer
+			|  gauge
+			|  gauge_change
+			|  set.
+
 -type call_type() 	:: stop.
--type cast_type()	:: { counter, statse:stat_key(), integer() }
-			|  { counter, statse:stat_key(), integer(), float() }
-			|  { timer, statse:stat_key(), integer() }
-			|  { timer, statse:stat_key(), integer(), float() }
-			|  { gauge, statse:stat_key(), integer() }
-			|  { gauge_change, statse:stat_key(), integer() }.
+-type cast_type()	:: { stat_type(), statse:stat_key(), number() | iodata() }
+			|  { stat_type(), statse:stat_key(), number() | iodata(), float() }.
 -type info_type()	:: _.
 -type call_ret() 	:: { noreply, #state{} }
 			|  { stop, term(), term(), #state{} }.
@@ -55,62 +57,31 @@ init( { Host, Port, StatPrefix } ) ->
 
 -spec handle_call( call_type(), { pid(), term() }, #state{} ) -> call_ret().
 handle_call( stop, _From, #state{} = State ) ->
-	{ stop, normal, ok, State };
-
-%% Unrecognised request
-handle_call( _Request, _From, State ) ->
-	error_logger:warning_msg( "Unrecognized call: ~p", [ _Request ] ),
-	{ noreply, State }.
+	{ stop, normal, ok, State }.
 
 -spec handle_cast( cast_type(), #state{} ) -> cast_ret().
-handle_cast( { counter, Stat, Count }, #state{} = State ) ->
-	Format = io_lib:format( "~p|c", [ Count ] ),
-	send_stat( Stat, Format, State ),
+handle_cast( { gauge, StatKey, Value }, #state{} = State ) when Value < 0 ->
+	{ noreply, NewState } = handle_cast( { gauge, StatKey, 0 }, State ),
+	handle_cast( { gauge_change, StatKey, Value }, NewState );
+
+handle_cast( { StatType, StatKey, Value }, #state{} = State ) ->
+	StatData = build_stat( StatType, Value ),
+	send_stat( StatKey, StatData, State ),
 	{ noreply, State };
 
-handle_cast( { counter, Stat, Count, SampleRate }, #state{} = State ) ->
-	Format = io_lib:format( "~p|c|@~p", [ Count, SampleRate ] ),
-	send_stat( Stat, Format, State ),
-	{ noreply, State };
-
-handle_cast( { timer, Stat, Millis }, #state{} = State ) ->
-	Format = io_lib:format( "~p|ms", [ Millis ] ),
-	send_stat( Stat, Format, State ),
-	{ noreply, State };
-
-handle_cast( { timer, Stat, Millis, SampleRate }, #state{} = State ) ->
-	Format = io_lib:format( "~p|ms|@~p", [ Millis, SampleRate ] ),
-	send_stat( Stat, Format, State ),
-	{ noreply, State };
-
-handle_cast( { gauge, Stat, Value }, #state{} = State ) when Value >= 0 ->
-	Format = io_lib:format( "~p|g", [ Value ] ),
-	send_stat( Stat, Format, State ),
-	{ noreply, State };
-
-handle_cast( { gauge, Stat, Value }, #state{} = State ) ->
-	{ noreply, NewState } = handle_cast( { gauge, Stat, 0 }, State ),
-	handle_cast( { gauge_change, Stat, Value }, NewState );
-
-handle_cast( { gauge_change, Stat, Delta }, #state{} = State ) when Delta >= 0 ->
-	Format = io_lib:format( "+~p|g", [ Delta ] ),
-	send_stat( Stat, Format, State ),
-	{ noreply, State };
-
-handle_cast( { gauge_change, Stat, Delta }, #state{} = State ) ->
-	Format = io_lib:format( "~p|g", [ Delta ] ),
-	send_stat( Stat, Format, State ),
+handle_cast( { StatType, StatKey, Value, SampleRate }, #state{} = State ) ->
+	StatData = build_stat( StatType, Value, SampleRate ),
+	send_stat( StatKey, StatData, State ),
 	{ noreply, State };
 
 %% Unrecognised request
 handle_cast( _Request, State ) ->
-	error_logger:warning_msg( "Unrecognized cast: ~p", [ _Request ] ),
+	error_logger:warning_msg( "Malformed stat: ~p", [ _Request ] ),
 	{ noreply, State }.
 
 -spec handle_info( info_type(), #state{} ) -> cast_ret().
 %% Unrecognised message
 handle_info( _Message, State ) ->
-	error_logger:warning_msg( "Unrecognized message: ~p", [ _Message ] ),
 	{ noreply, State }.
 
 -spec terminate( term(), #state{} ) -> _.
@@ -130,6 +101,21 @@ build_prefix( Prefix ) ->
 		$. ->	Binary;
 		_ ->	<<Binary/binary, $./integer>>
 	end.
+
+-spec build_stat( stat_type(), number() | iodata() ) -> iolist().
+build_stat( gauge_change, Value ) when Value >= 0 ->	[ $+, build_stat( gauge, Value ) ];
+build_stat( set, Value ) when not is_number( Value ) ->	[ io_lib:format( "~s", [ Value ] ), $|, encode_stat_type( set ) ];
+build_stat( StatType, Value ) ->			[ io_lib:format( "~w", [ Value ] ), $|, encode_stat_type( StatType ) ].
+
+-spec build_stat( stat_type(), number(), float() ) -> iolist().
+build_stat( StatType, Value, SampleRate ) ->		[ build_stat( StatType, Value ), "|@", io_lib:format( "~w", [ SampleRate ] ) ].
+
+-spec encode_stat_type( stat_type() ) -> iolist().
+encode_stat_type( counter ) ->		"c";
+encode_stat_type( timer ) ->		"ms";
+encode_stat_type( gauge ) ->		"g";
+encode_stat_type( gauge_change ) ->	"g";
+encode_stat_type( set ) ->		"s".
 
 -spec send_stat( statse:stat_key(), iolist(), #state{} ) -> ok.
 send_stat( Stat, Data, #state{ socket = Socket, ip = IP, port = Port, stat_prefix = StatPrefix } ) ->

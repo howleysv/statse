@@ -103,8 +103,20 @@ statse:gauge( StatKey, Value )
 statse:gauge_change( StatKey, Delta )
 ```
 
+##### Count the number of unique values passed to a key
+```erlang
+statse:set( StatKey, Value )
+```
+
+
 ## Tests:
 
 ```
-rebar eunit
+make test
+```
+
+## Dialyzer
+
+```
+make dialyzer
 ```

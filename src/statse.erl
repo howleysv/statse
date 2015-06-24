@@ -2,7 +2,7 @@
 -author( "Shane Howley <howleysv@gmail.com>" ).
 
 %% Public interface
--export( [ increment/1, increment/2, decrement/1, decrement/2, count/2, count/3, timing/2, timing/3, gauge/2, gauge_change/2 ] ).
+-export( [ increment/1, increment/2, decrement/1, decrement/2, count/2, count/3, timing/2, timing/3, gauge/2, gauge_change/2, set/2 ] ).
 
 -export_type( [ stat_key/0 ] ).
 
@@ -24,22 +24,23 @@ decrement( Stat ) ->
 decrement( Stat, SampleRate ) ->
 	count( Stat, -1, SampleRate ).
 
--spec count( stat_key(), integer() ) -> ok.
+-spec count( stat_key(), number() ) -> ok.
 count( Stat, Count ) ->
 	count( Stat, Count, 1.0 ).
 
--spec count( stat_key(), integer(), float() ) -> ok.
+-spec count( stat_key(), number(), float() ) -> ok.
 count( Stat, Count, SampleRate ) when SampleRate >= 1.0 ->
 	dispatch( { counter, Stat, Count } );
 
 count( Stat, Count, SampleRate ) ->
-	dispatch( { counter, Stat, Count, SampleRate } ).
+	should_send( SampleRate ) andalso dispatch( { counter, Stat, Count, SampleRate } ),
+	ok.
 
--spec timing( stat_key(), integer() | erlang:timestamp() ) -> ok.
+-spec timing( stat_key(), number() | erlang:timestamp() ) -> ok.
 timing( Stat, Time ) ->
 	timing( Stat, Time, 1.0 ).
 
--spec timing( stat_key(), integer() | erlang:timestamp(), float() ) -> ok.
+-spec timing( stat_key(), number() | erlang:timestamp(), float() ) -> ok.
 timing( Stat, Timestamp = { _, _, _ }, SampleRate ) ->
 	Millis = timer:now_diff( erlang:now(), Timestamp ) div 1000,
 	timing( Stat, Millis, SampleRate );
@@ -48,19 +49,32 @@ timing( Stat, Millis, SampleRate ) when SampleRate >= 1.0 ->
 	dispatch( { timer, Stat, Millis } );
 
 timing( Stat, Millis, SampleRate ) ->
-	dispatch( { timer, Stat, Millis, SampleRate } ).
+	should_send( SampleRate ) andalso dispatch( { timer, Stat, Millis, SampleRate } ),
+	ok.
 
--spec gauge( stat_key(), integer() ) -> ok.
+-spec gauge( stat_key(), number() ) -> ok.
 gauge( Stat, Value ) ->
 	dispatch( { gauge, Stat, Value } ).
 
--spec gauge_change( stat_key(), integer() ) -> ok.
+-spec gauge_change( stat_key(), number() ) -> ok.
 gauge_change( Stat, Delta ) ->
 	dispatch( { gauge_change, Stat, Delta } ).
+
+-spec set( stat_key(), number() | iodata() ) -> ok.
+set( Stat, Value ) ->
+	dispatch( { set, Stat, Value } ).
 
 -spec dispatch( tuple() ) -> ok.
 dispatch( Message ) ->
 	statse_worker:send_stat( statse_worker, Message ).
+
+-spec should_send( float() ) -> boolean().
+should_send( SampleRate ) ->
+	case get( random_seed ) of
+		undefined ->	random:seed( os:timestamp() );
+		_ ->		ok
+	end,
+	random:uniform() =< SampleRate.
 
 
 -ifdef( TEST ).
@@ -164,6 +178,34 @@ gauge_negative_test() ->
 	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":0|g", Packet1 ),
 	Packet2 = get_packet( Port ),
 	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":-1234|g", Packet2 ),
+	teardown( Port ).
+
+set_test() ->
+	Port = setup(),
+	Stat = "count",
+	set( Stat, 1234 ),
+	Packet1 = get_packet( Port ),
+	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|s", Packet1 ),
+	set( Stat, "user5678" ),
+	Packet2 = get_packet( Port ),
+	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":user5678|s", Packet2 ),
+	teardown( Port ).
+
+float_test() ->
+	Port = setup(),
+	Stat = "float",
+	count( Stat, 1234.5678 ),
+	Packet1 = get_packet( Port ),
+	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234.5678|c", Packet1 ),
+	count( Stat, 0.0000000001 ),
+	Packet2 = get_packet( Port ),
+	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1.0e-10|c", Packet2 ),
+	count( Stat, -1234.5678 ),
+	Packet3 = get_packet( Port ),
+	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":-1234.5678|c", Packet3 ),
+	count( Stat, 1.23456e78 ),
+	Packet4 = get_packet( Port ),
+	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1.23456e78|c", Packet4 ),
 	teardown( Port ).
 
 gauge_monitor_test() ->
