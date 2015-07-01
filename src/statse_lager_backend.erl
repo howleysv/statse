@@ -13,7 +13,11 @@ init( Level ) -> { ok, #state{ level = lager_util:config_to_mask( Level ) } }.
 -spec handle_event( { log, lager_msg:lager_msg() }, #state{} ) -> { ok, #state{} }.
 handle_event( { log, Message }, #state{ level = Level } = State ) ->
 	case lager_util:is_loggable( Message, Level, ?MODULE ) of
-		true ->	statse:increment( [ <<"lager.message.">>, atom_to_binary( lager_msg:severity( Message ), utf8 ) ] );
+		true ->	statse:increment( 	[
+							<<"lager.message.">>,
+							lager_default_formatter:format( Message, [ { module, "unknown" } ] ), <<".">>,
+							atom_to_binary( lager_msg:severity( Message ), utf8 )
+						] );
 		_ -> 	ok
 	end,
 	{ ok, State };
