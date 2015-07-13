@@ -83,6 +83,8 @@ should_send( SampleRate ) ->
 -define( TEST_PORT, 53934 ).
 -define( TEST_PREFIX, "statse.test" ).
 
+-define( UDP_TEST( F ), { setup, fun setup/0, fun teardown/1, F } ).
+
 setup() ->
 	{ ok, Port } = gen_udp:open( ?TEST_PORT, [ { active, false } ] ),
 	{ ok, _ } = statse_worker:start_link( "localhost", ?TEST_PORT, ?TEST_PREFIX ),
@@ -96,130 +98,135 @@ teardown( Port ) ->
 	statse_worker:stop( statse_worker ),
 	gen_udp:close( Port ).
 
-increment_test() ->
-	Port = setup(),
+udp_test_() ->
+	[
+		{ "Increment counter format",				?UDP_TEST( fun test_increment/1 ) },
+		{ "Decrement counter format",				?UDP_TEST( fun test_decrement/1 ) },
+		{ "Counter format", 					?UDP_TEST( fun test_count/1 ) },
+		{ "Counter with sampling rate format", 			?UDP_TEST( fun test_count_sample/1 ) },
+		{ "Timing format", 					?UDP_TEST( fun test_timing_ms/1 ) },
+		{ "Timing with erlang timestamp start time format",	?UDP_TEST( fun test_timing_now/1 ) },
+		{ "Timing with a sampling rate format", 		?UDP_TEST( fun test_timing_sample/1 ) },
+		{ "Positive gauge format", 				?UDP_TEST( fun test_gauge/1 ) },
+		{ "Positive gauge change format", 			?UDP_TEST( fun test_gauge_change/1 ) },
+		{ "Negative gauge format", 				?UDP_TEST( fun test_gauge_negative/1 ) },
+		{ "Set format", 					?UDP_TEST( fun test_set/1 ) },
+		{ "Float value encoding format", 			?UDP_TEST( fun test_float/1 ) }
+	].
+
+gauge_monitor_test_() ->
+	[ { 	"Test repeating gauge stats send by gauge monitor",
+		{
+			setup,
+			fun() -> { setup(), element( 2, statse_gauge_monitor:start_link() ) } end,
+			fun( { Port, Pid } ) -> exit( Pid, normal ), teardown( Port ) end,
+			fun test_gauge_monitor/1
+		}
+	} ].
+
+test_increment( Port ) ->
 	Stat = "inc",
 	increment( Stat ),
 	Packet = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1|c", Packet ),
-	teardown( Port ).
+	[ ?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1|c", Packet ) ].
 
-decrement_test() ->
-	Port = setup(),
+test_decrement( Port ) ->
 	Stat = "dec",
 	decrement( Stat ),
 	Packet = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":-1|c", Packet ),
-	teardown( Port ).
+	[ ?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":-1|c", Packet ) ].
 
-count_test() ->
-	Port = setup(),
+test_count( Port ) ->
 	Stat = "count",
 	count( Stat, 1234 ),
 	Packet = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|c", Packet ),
-	teardown( Port ).
+	[ ?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|c", Packet ) ].
 
-count_sample_test() ->
-	Port = setup(),
+test_count_sample( Port ) ->
 	Stat = "count.sampled",
 	dispatch( { counter, Stat, 1234, 0.25 } ),
 	Packet = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|c|@0.25", Packet ),
-	teardown( Port ).
+	[ ?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|c|@0.25", Packet ) ].
 
-timing_ms_test() ->
-	Port = setup(),
+test_timing_ms( Port ) ->
 	Stat = "timing",
 	timing( Stat, 1234 ),
 	Packet = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|ms", Packet ),
-	teardown( Port ).
+	[ ?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|ms", Packet ) ].
 
-timing_now_test() ->
-	Port = setup(),
+test_timing_now( Port ) ->
 	Stat = "timing.now",
 	{ Mega, Sec, Micro } = os:timestamp(),
 	StartTime = { Mega - 1, Sec, Micro },
 	timing( Stat, StartTime ),
 	Packet = get_packet( Port ),
 	{ ok, Regex } = re:compile( re:replace( ?TEST_PREFIX ++ "." ++ Stat, "\\.", "\\\\\\.", [ global, { return, list } ] ) ++ ":[0-9]+\\|ms" ),
-	?assertMatch( { match, _ }, re:run( Packet, Regex ) ),
-	teardown( Port ).
+	[ ?_assertEqual( match, re:run( Packet, Regex, [ { capture, none } ] ) ) ].
 
-timing_sample_test() ->
-	Port = setup(),
+test_timing_sample( Port ) ->
 	Stat = "timing.sampled",
 	dispatch( { timer, Stat, 1234, 0.25 } ),
 	Packet = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|ms|@0.25", Packet ),
-	teardown( Port ).
+	[ ?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|ms|@0.25", Packet ) ].
 
-gauge_test() ->
-	Port = setup(),
+test_gauge( Port ) ->
 	Stat = "gauge",
 	gauge( Stat, 1234 ),
 	Packet = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|g", Packet ),
-	teardown( Port ).
+	[ ?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|g", Packet ) ].
 
-gauge_change_test() ->
-	Port = setup(),
+test_gauge_change( Port ) ->
 	Stat = "gauge.change",
 	gauge_change( Stat, 1234 ),
 	Packet = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":+1234|g", Packet ),
-	teardown( Port ).
+	[ ?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":+1234|g", Packet ) ].
 
-gauge_negative_test() ->
-	Port = setup(),
+test_gauge_negative( Port ) ->
 	Stat = "gauge.neg",
 	gauge( Stat, -1234 ),
 	Packet1 = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":0|g", Packet1 ),
 	Packet2 = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":-1234|g", Packet2 ),
-	teardown( Port ).
+	[
+	 	?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":0|g", Packet1 ),
+		?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":-1234|g", Packet2 )
+	].
 
-set_test() ->
-	Port = setup(),
+test_set( Port ) ->
 	Stat = "count",
 	set( Stat, 1234 ),
 	Packet1 = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|s", Packet1 ),
 	set( Stat, "user5678" ),
 	Packet2 = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":user5678|s", Packet2 ),
-	teardown( Port ).
+	[
+		?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|s", Packet1 ),
+		?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":user5678|s", Packet2 )
+	].
 
-float_test() ->
-	Port = setup(),
+test_float( Port ) ->
 	Stat = "float",
 	count( Stat, 1234.5678 ),
 	Packet1 = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234.5678|c", Packet1 ),
 	count( Stat, 0.0000000001 ),
 	Packet2 = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1.0e-10|c", Packet2 ),
 	count( Stat, -1234.5678 ),
 	Packet3 = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":-1234.5678|c", Packet3 ),
 	count( Stat, 1.23456e78 ),
 	Packet4 = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1.23456e78|c", Packet4 ),
-	teardown( Port ).
+	[
+		?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234.5678|c", Packet1 ),
+		?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1.0e-10|c", Packet2 ),
+		?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":-1234.5678|c", Packet3 ),
+		?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1.23456e78|c", Packet4 )
+	].
 
-gauge_monitor_test() ->
-	Port = setup(),
-	{ ok, Pid } = statse_gauge_monitor:start_link(),
+test_gauge_monitor( { Port, _Pid } ) ->
 	Stat = "gauge.mon",
 	statse_gauge_monitor:start_monitor( Stat, fun() -> { ok, 1234 } end, 7 ),
 	Packet1 = get_packet( Port ),
-	?assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|g", Packet1 ),
-	timer:sleep( 10 ),
 	Packet2 = get_packet( Port ),
-	?assertEqual( Packet1, Packet2 ),
-	exit( Pid, normal ),
-	teardown( Port ).
+	[
+		?_assertEqual( ?TEST_PREFIX ++ "." ++ Stat ++ ":1234|g", Packet1 ),
+		?_assertEqual( Packet1, Packet2 )
+	].
 
 -endif.
